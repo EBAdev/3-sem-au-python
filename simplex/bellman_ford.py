@@ -7,13 +7,13 @@ Num = Union[float, int]
 
 
 def create_bellman_ford_network(
-    nodes: List[int], arcs: List[Tuple[int, int, Num]]
+    nodes: List[int], arcs: List[Tuple[int, int, Num]], path_to_node: int
 ) -> nx.DiGraph:
     """
     For displaying the nodes in certain layers, we use bfs this takes a list of "source nodes" which is given here. Change this to change what we start at.
     """
     G = nx.DiGraph()
-    sources = [nodes[0], nodes[1]]
+    sources = [path_to_node]
 
     for node in nodes:
         G.add_node(node)
@@ -152,7 +152,7 @@ def bellman_ford_network_to_latex(
     )
 
 
-def bellman_ford(
+def bellman_ford_shortest_path(
     nodes: List[int],
     arcs: List[Tuple[int, int, Num]],
     path_to_node: int,
@@ -168,10 +168,12 @@ def bellman_ford(
             * A list of the edges in the bellman-ford problem where each element is a tuple of tree digits. The first is the arcs origin, the second is the arcs destination, and the third is the cost of traversal along the arc, i.e. the length.
     3. path_to_node:int[required]
             * An integer value corresponding to the node to which paths are calculated
-    5. node_labels: Dict = {}
+    4. node_labels: Dict = {}
             * A dictionary matching the integer value of all of the nodes, to a corresponding string in LaTeX format, used for printing.
+    5. LaTex:bool = False
+            * A boolean value used to determine if latex printing is needed.
     """
-    G = create_bellman_ford_network(nodes, arcs)
+    G = create_bellman_ford_network(nodes, arcs, path_to_node)
 
     if node_labels == {}:
         for i in range(G.number_of_nodes()):

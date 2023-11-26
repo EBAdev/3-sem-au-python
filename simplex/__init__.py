@@ -30,4 +30,7 @@ from simplex.min_cost_network_flow import (
     min_cost_network_flow_simplex,
     min_cost_network_flow_to_latex,
 )
-from simplex.bellman_ford import bellman_ford
+
+# Shortest path algorithms
+from simplex.bellman_ford import bellman_ford_shortest_path
+from simplex.dijkstra import dijkstra_shortest_path, dijkstra_network_to_latex

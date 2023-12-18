@@ -25,7 +25,7 @@ class BlackScholes:
         self.r = r
         self.sigma = sigma
 
-    def opt_check(self, option: Option):
+    def __opt_check(self, option: Option):
         """
         Func to raise value error if option is not continous.
         """
@@ -108,7 +108,7 @@ class BlackScholes:
         \\Phi(x)=\\frac{1}{\\sqrt{2 \\pi}} \\int_{-\\infty}^x e^{-\\frac{z^2}{2}} \\mathrm{~d} z
         $$
         """
-        self.opt_check(option)
+        self.__opt_check(option)
         if isinstance(option, EuOption) is False or option.opt_type not in [
             "C",
             "P",
@@ -177,7 +177,7 @@ class BlackScholes:
 
 
         """
-        self.opt_check(option)
+        self.__opt_check(option)
         if option.continous is False or isinstance(option, EuOption) is False:
             raise ValueError(
                 "Greeks can only be calculated for continous European put or call options,"

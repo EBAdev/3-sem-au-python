@@ -165,7 +165,7 @@ def get_tableau_optimization(tableau, min):
     primal_sol = tableau[:, -1][1:]
     optimal_theta = []  # array that returns optimal theta.
     for idx, a in enumerate(A_bar_j_star):
-        if a <= 0:
+        if a <= 0 or np.isclose(a, 0, rtol=0.000001):
             continue
         if not optimal_theta or (optimal_theta[0] > primal_sol[idx] / a):
             optimal_theta = (primal_sol[idx] / a, idx)

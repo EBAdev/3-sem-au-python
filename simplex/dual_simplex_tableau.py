@@ -171,7 +171,7 @@ def get_tableau_optimization(tableau):
 
     optimal_theta = []  # array that returns optimal theta.
     for idx, a in enumerate(A_bar_k_star):
-        if a >= 0:
+        if a >= 0 or np.isclose(a, 0, rtol=0.000001):
             continue
         if not optimal_theta or (optimal_theta[0] > -reduced_costs[idx] / a):
             optimal_theta = ((-reduced_costs[idx] / a), idx)

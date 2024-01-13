@@ -411,9 +411,13 @@ class BinomialLattice(Lattice):
             raise ValueError(
                 "The provided option has a higher maturity than the lattice"
             )
+        state_values = []
+        eu_prices = {}
+
         if isinstance(opt, EuOption):
             disc = discount_factor(self.r, 0, opt.T, self.continous)
             to_sum = 0
+
             for k in range(opt.T + 1):
                 num_paths = int(special.binom(opt.T, k))
                 if self.constant_prob_rn is False:
@@ -431,14 +435,11 @@ class BinomialLattice(Lattice):
             else:
                 return round(disc * to_sum, rounding)
         elif isinstance(opt, AmOption):
-            rlat = self.lat
+            rlat = self.lat.copy()
             rlat.reverse()
-            state_values = []
-            eu_prices = {}
             for idx, col in enumerate(rlat):
                 t = opt.T - idx
                 state_val_col = []
-                eu_price_col = []
                 for s, element in enumerate(col):
                     if t == opt.T:
                         if opt.opt_type == "P":
@@ -455,6 +456,8 @@ class BinomialLattice(Lattice):
                         P_d = state_values[idx - 1][s]
                         P_u = state_values[idx - 1][s + 1]
                         P_s = disc * (q * P_u + (1 - q) * P_d)
+                        if rounding is not None:
+                            P_s = round(P_s, rounding)
                         if t != 0:
                             eu_prices.update({"P_" + str(t) + "_" + str(s): P_s})
 
@@ -468,6 +471,7 @@ class BinomialLattice(Lattice):
                             state_val_col.append(round(IV_s, rounding))
 
                 state_values.append(state_val_col)
+
             state_values.reverse()
             return (state_values, eu_prices)
         else:

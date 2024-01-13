@@ -89,7 +89,7 @@ class EuOption(Option):
         6. s_t:Num [required]
                 * The price of the underlying at time t
         """
-        disc = discount_factor(rf_rate, t, self.T)
+        disc = discount_factor(rf_rate, t, self.T, self.continous)
         if self.opt_type == "C":
             if rounding is None:
                 return price_t + disc * self.K - St

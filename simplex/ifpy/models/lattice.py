@@ -61,7 +61,7 @@ class Lattice:
             _.sort()
             if _ != step:
                 raise ValueError(
-                    "LatticeError: Please make sure that each step in the provided lattice is sorted, such that the greatest value is the first entry."
+                    "LatticeError: Please make sure that each step in the provided lattice is sorted, such that the lowest value is the first entry."
                 )
         return None
 
@@ -420,7 +420,10 @@ class BinomialLattice(Lattice):
                     print(
                         "Warning: The current implementation does not support variable risk neutral prob."
                     )
+
                 payoff = max(self.lat[opt.T][k] - opt.K, 0)
+                if opt.opt_type == "P":
+                    payoff = max(opt.K - self.lat[opt.T][k], 0)
                 q = self.q[0][1]
                 to_sum += (1 - q) ** (opt.T - k) * q ** (k) * num_paths * payoff
             if rounding is None:

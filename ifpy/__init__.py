@@ -25,10 +25,19 @@ from ifpy.market import *
 from ifpy.utils import *
 
 from ifpy.Assets.forward import Forward
+from ifpy.Assets.annuity import Annuity
 from ifpy.Assets.future import Future
 from ifpy.Assets.option import AmOption, EuOption
 from ifpy.Assets.swap import CommoditySwap, InterestRateSwap
 
 from ifpy.models.black_scholes import BlackScholes
 from ifpy.models.one_period_market import OnePeriodMarket
-from ifpy.models.portfolio import Portfolio, MVPortfolio, TanPortfolio, CML_plot,critical_frontier_plot
+from ifpy.models.lattice import InterestLattice, BinomialLattice
+from ifpy.models.portfolio import (
+    Portfolio,
+    OptPortfolio,
+    MVPortfolio,
+    TanPortfolio,
+    CML_plot,
+    critical_frontier_plot,
+)

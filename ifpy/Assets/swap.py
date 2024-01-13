@@ -73,7 +73,7 @@ class InterestRateSwap(Swap):
         The fair fixed rate, c, at time 0 of an interest rate swap with periods t_0,..., t_n and reference interest rate r is given by
 
         $$
-        c=\\frac{(1-d_{0,t_n})}{\\sum_{i=1}^{n}d_{0,t_i}}}
+        c=\\frac{(1-d_{0,t_n})}{\\sum_{i=1}^{n}d_{0,t_i}}
         $$
         """
         d_0_ti = [

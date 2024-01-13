@@ -10,4 +10,6 @@ class Asset:
 
     def __init__(self, continous: bool = False) -> None:
         self.continous = continous
-        self.a_type = None  # str to hold the type of asset. 'D' = derivative
+        self.a_type = (
+            None  # str to hold the type of asset. 'D' = derivative, "B" = bonds
+        )

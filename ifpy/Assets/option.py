@@ -67,12 +67,7 @@ class EuOption(Option):
         self.region = "E"
 
     def put_call_parity(
-        self,
-        price_t: Num,
-        t: Num,
-        T: Num,
-        rf_rate: Num,
-        St: Num,
+        self, price_t: Num, t: Num, rf_rate: Num, St: Num, rounding: int | None = 4
     ):
         """
         Function to determine the price of a European call/put option, using put-call parity.
@@ -94,10 +89,16 @@ class EuOption(Option):
         6. s_t:Num [required]
                 * The price of the underlying at time t
         """
-        disc = discount_factor(rf_rate, t, T)
+        disc = discount_factor(rf_rate, t, self.T)
         if self.opt_type == "C":
-            return price_t + disc * self.K - St
-        return St - disc * self.K + price_t
+            if rounding is None:
+                return price_t + disc * self.K - St
+            else:
+                return round(price_t + disc * self.K - St, rounding)
+        if rounding is None:
+            return St - disc * self.K + price_t
+        else:
+            return round(St - disc * self.K + price_t, rounding)
 
 
 class AmOption(Option):

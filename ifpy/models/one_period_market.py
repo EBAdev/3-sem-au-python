@@ -63,8 +63,8 @@ class OnePeriodMarket:
         """
         for s in self.psi:
             if s <= 0:  # if a stateprice is non-positive.
-                return False
-        return True
+                return True
+        return False
 
     def complete(self) -> bool:
         """
@@ -75,13 +75,13 @@ class OnePeriodMarket:
         except np.LinAlgError:
             return False  # if value matrix is not invertible, the state prices are not unique.
         # the model is then complete if it is arbitrage free
-        return self.arbitrage()
+        return not self.arbitrage()
 
     def risk_neutral_prob(self, rounding: Union[int, None] = 4):
         """
         Function to return the risk-netutral probabilities and the price of a risk-free asset assuming the model is arbitrage free.
         """
-        if self.arbitrage() is False:
+        if self.arbitrage() is True:
             raise ValueError(
                 "The provided state prices for the model are not strictly positive, therefore the model is not arbitrage free.\n"
                 + "This means that the risk-neutral probabilities are not deterministic. "
@@ -119,7 +119,7 @@ class OnePeriodMarket:
             ex_value = sum([v * self.pi[i][0] for i, v in enumerate(state_values)])
         else:
             q = self.risk_neutral_prob(None)["q_s"]
-            ex_value = sum([d * q[i][0] for i, d in enumerate(state_values)])
+            ex_value = sum([d * q[i] for i, d in enumerate(state_values)])
         if rounding is None:
             return ex_value
         return round(ex_value, rounding)

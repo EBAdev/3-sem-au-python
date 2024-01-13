@@ -91,7 +91,7 @@ class Portfolio:
 
     def calc_a(self, cov_mat: np.ndarray, rounding: Union[int, None] = 4):
         """
-        a = \\mathbb{1}^T \\Sigma^{-1}\\mathbb{1}
+        a = \\1^T \\Sigma^{-1}\\1
         """
         one_mat = np.atleast_2d(np.ones(cov_mat.shape[0])).T
         if rounding is None:
@@ -105,7 +105,7 @@ class Portfolio:
         rounding: Union[int, None] = 4,
     ):
         """
-        b = \\mathbb{1}^T \\Sigma^{-1}\\bar{\\mathbf{r}}
+        b = \\1^T \\Sigma^{-1}\\bar{\\mathbf{r}}
         """
         one_mat = np.atleast_2d(np.ones(cov_mat.shape[0])).T
         if rounding is None:
@@ -201,7 +201,7 @@ class Portfolio:
         self,
         threshold,
         ex_returns,
-        cov_mat=None,
+        cov_mat,
         rf_rate=None,
         rounding: Union[int, None] = 4,
     ):
@@ -220,10 +220,55 @@ class Portfolio:
         """
         ex_return = self.ex_return(ex_returns, cov_mat, rf_rate, None)
         pf_sd = sqrt(self.variance(cov_mat, None))
-        standard_norm_val = (threshold - ex_return) / pf_sd
         if rounding is None:
-            return norm.cdf(standard_norm_val)
-        return round(norm.cdf(standard_norm_val), rounding)
+            return norm.cdf(threshold, loc=ex_return, scale=pf_sd)
+        return round(norm.cdf(threshold, loc=ex_return, scale=pf_sd), rounding)
+
+    def correlation_matrix(self, cov_mat: Mat):
+        """
+        Calculate standard deviations and correlation matrix from a given covariance matrix.
+
+        Parameters:
+        - cov_mat: Mat.
+
+        Returns:
+        - dict: Dictionary containing standard deviations and correlation matrix.
+        """
+        cov_mat = self.cov_mat_check(cov_mat)
+        SD_vec = [sqrt(cov_mat[i][i]) for i in range(cov_mat.shape[0])]
+        corr_mat = []
+        for r in range(cov_mat.shape[0]):
+            row = []
+            for c in range(cov_mat.shape[1]):
+                if r == c:
+                    corr = 1
+                else:
+                    corr = cov_mat[r][c] / (SD_vec[r] * SD_vec[c])
+                row.append(corr)
+            corr_mat.append(row)
+        return {"SD": np.array([SD_vec]).T, "correlation": np.array(corr_mat)}
+
+    def sharpe_ratio(
+        self,
+        ex_returns: Vec,
+        cov_mat=None,
+        rf_rate=None,
+        rounding: Union[int, None] = 4,
+    ):
+        """
+        \\begin{equation*}
+          S_{pf} = \\frac{\\bar{\\mathbf{r}}_{pf}-r_f}{\\sigma_{pf}}
+        \\end{equation*}
+        """
+        ex_pf_r = self.ex_return(ex_returns, cov_mat, rf_rate, None)
+        if isinstance(self,TanPortfolio):
+            ex_pf_r = ex_pf_r["return"]
+        if rounding is None:
+            return (ex_pf_r - rf_rate) / sqrt(self.variance(cov_mat, None))
+        return round(
+            (ex_pf_r - rf_rate) / sqrt(self.variance(cov_mat, None)),
+            rounding,
+        )
 
 
 class OptPortfolio(Portfolio):
@@ -244,8 +289,23 @@ class OptPortfolio(Portfolio):
 
         portfolio is on the critical frontier and is the portfolio with lowest variance
         for a given return r.
-        ##### Weights Formula
-        2. With rf rate:
+        ### Weights Formula
+        #### without rf rate:
+            
+            \\begin{equation*}      
+                \\mathbf{w}^* =\\frac{a \\bar{r}_p-b}{d} \\Sigma^{-1} \\overline{\\mathbf{r}}+\\frac{c-\\bar{r}_p b}{d} \\Sigma^{-1} \\1
+            \\end{equation*}
+        where we have
+            $$
+                \\begin{aligned}
+                    & a=\\1^{\\top} \\Sigma^{-1} \\1>0 \\\\
+                    & b=\\1^{\\top} \\Sigma^{-1} \\overline{\\mathbf{r}}\\\\
+                    & c=\\overline{\\mathbf{r}}^{\\top} \\Sigma^{-1} \\overline{\\mathbf{r}}>0 \\\\
+                    & d=a c-b^2>0 
+                \\end{aligned}
+            $$
+        
+        #### With rf rate:
 
         \\mathbf{w}^*=\\frac{\\bar{r}_p^e}{\\left(\\overline{\\mathbf{r}}^e\\right)^{\\top} \\Sigma^{-1} \\overline{\\mathbf{r}}^e} \\Sigma^{-1} \\overline{\\mathbf{r}}^e,
 
@@ -276,9 +336,9 @@ class OptPortfolio(Portfolio):
             c = self.calc_c(cov_mat, ex_returns, None)
             d = self.calc_d(cov_mat, ex_returns, None)
             one_mat = np.atleast_2d(np.ones(cov_mat.shape[0])).T
-            w = ((a * self.ex_r - b) / d) * np.linalg.inv(cov_mat) * ex_returns + (
+            w = ((a * self.ex_r - b) / d) * np.linalg.inv(cov_mat) @ ex_returns + (
                 (c - self.ex_r * b) / d
-            ) * np.linalg.inv(cov_mat) * one_mat
+            ) * np.linalg.inv(cov_mat) @ one_mat
             self.w = w
         else:
             self.ex_ec_r = self.ex_r - rf_rate
@@ -304,7 +364,7 @@ class MVPortfolio(Portfolio):
         Class used to create the minimum variance portfolio
         i.e. the amount to be invested in each asset to optain a mininmum variance portfolio
         ##### Weights Formula
-        \\frac{1}{a}\\cdot \\Sigma^{-1}\\cdot\\mathbb{1}^T,\\quad\\text{where }a=\\mathbb{1}^T\\Sigma^{-1}\\mathbb{1}
+         w_{mvp} = \\frac{1}{a}\\cdot \\Sigma^{-1}\\cdot\\1^T,\\quad\\text{where }a=\\1^T\\Sigma^{-1}\\1
         #### Parameters
         1. cov_mat : Mat object
                 * The covariance matrix of the finanicial market.
@@ -334,7 +394,7 @@ class MVPortfolio(Portfolio):
         #### Formula
         b/a
         ##### LaTex equation
-        \\bar r_{mvp}=\\frac{b}{a},\\quad\\text{where } b=\\mathbb{1}^T\\Sigma^{-1}\\bar{\\mathbf{r}}_{mvp}
+        \\bar r_{mvp}=\\frac{b}{a},\\quad\\text{where } b=\\1^T\\Sigma^{-1}\\bar{\\mathbf{r}}_{mvp}
         #### Parameters
         1. cov_mat : Mat object
                 * The covariance matrix of the finanicial market.
@@ -358,7 +418,7 @@ class MVPortfolio(Portfolio):
         #### Formula
         w^T * ∑ * w or (1/a)
         ##### LaTex equation
-        \\frac{1}{a},\\quad\\text{where }a=\\mathbb{1}^T\\Sigma^{-1}\\mathbb{1}
+        \\sigma_{mvp}^2=\\frac{1}{a},\\quad\\text{where }a=\\1^T\\Sigma^{-1}\\1
         #### Parameters
         1. cov_mat : Mat object
                 * The covariance matrix of the finanicial market.
@@ -387,7 +447,7 @@ class TanPortfolio(Portfolio):
         """
         Class to create the Tangency portfolio, and determine its weights.
         ##### LaTex weights formula
-        w_{tan}= \\frac{\\Sigma^{-1} \\cdot \\bar{\\mathbf{r}}^e}{\\mathbb{1}^T\\cdot \\Sigma^{-1}\\cdot\\bar{\\mathbf{r}}^e}
+        w_{tan}= \\frac{\\Sigma^{-1} \\cdot \\bar{\\mathbf{r}}^e}{\\1^T\\cdot \\Sigma^{-1}\\cdot\\bar{\\mathbf{r}}^e}
         #### Parameters
         1. cov_mat : Mat object [required]
                 * The covariance matrix of the finanicial market.
@@ -576,7 +636,7 @@ def CML_plot(
         for i, (x, y) in enumerate(zip(pf_sd, pf_ex_r)):
             plt.text(
                 x,
-                y,
+                y + 0.005,
                 portfolio_labels[i],
                 color="black",
                 fontsize=10,

@@ -599,12 +599,14 @@ def CML_plot(
     portfolios: List[Portfolio] = None,
     portfolio_labels: List[str] = None,
     x_len=0.3,
+    latex=True,
 ):
     """
     Function to return a plot of the capital market line. If portfolios should be shown give them as a list, if labels of these should be shown give labels as a list also.
     """
     # evenly sampled time at 200ms intervals
-    plt.rcParams.update({"text.usetex": True, "font.family": "Computer Modern"})
+    if latex:
+        plt.rcParams.update({"text.usetex": True, "font.family": "Computer Modern"})
     sd = np.linspace(0, x_len)
     tan = TanPortfolio(cov_mat, ex_returns, rf_rate)
 
@@ -706,12 +708,14 @@ def critical_frontier_plot(
     portfolio_labels: List[str] = None,
     x_len=0.5,
     samples=1000,
+    latex=True,
 ):
     """
     Function to return a plot of the critical/efficient frontier. If risk-free rate is present do not leave as none since this will change the line to be the capital market line. If portfolios should be shown give them as a list, if labels of these should be shown give labels as a list also.
     """
     # evenly sampled time at 200ms intervals
-    plt.rcParams.update({"text.usetex": True, "font.family": "Computer Modern"})
+    if latex:
+        plt.rcParams.update({"text.usetex": True, "font.family": "Computer Modern"})
 
     rates = np.linspace(-x_len, x_len, num=int(x_len * samples))
     mvp = MVPortfolio(cov_mat)

@@ -143,6 +143,35 @@ class Portfolio:
             return a * c - b**2
         return round(a * c - b**2, rounding)
 
+    def get_abcd(
+        self,
+        cov_mat: Mat,
+        ex_returns: Vec,
+        rounding: Union[int, None] = 4,
+    ):
+        """
+        Function to return a,b,c,d values for the market.
+        
+        #### Formulas:
+        \\begin{aligned}
+            & a=\\1^{\\top} \\Sigma^{-1} \\1>0                                       \\ \\\\
+                
+            & b=\\1^{\\top} \\Sigma^{-1} \\overline{\\mathbf{r}}                      \\ \\\\
+                
+            & c=\\overline{\\mathbf{r}}^{\\top} \\Sigma^{-1} \\overline{\\mathbf{r}}>0 \\ \\\\
+                
+            & d=a c-b^2>0
+        \\end{aligned}
+        
+        """
+        cov_mat = self.cov_mat_check(cov_mat)
+        ex_r = self.returns_check(ex_returns)
+        a = self.calc_a(cov_mat, rounding)
+        b = self.calc_b(cov_mat, ex_r, rounding)
+        c = self.calc_c(cov_mat, ex_r, rounding)
+        d = self.calc_d(cov_mat, ex_r, rounding)
+        return {"a": a, "b": b, "c": c, "d": d}
+
     def covariance(
         self, cov_mat: Mat, weights: np.ndarray, rounding: Union[int, None] = 4
     ):
@@ -261,7 +290,7 @@ class Portfolio:
         \\end{equation*}
         """
         ex_pf_r = self.ex_return(ex_returns, cov_mat, rf_rate, None)
-        if isinstance(self,TanPortfolio):
+        if isinstance(self, TanPortfolio):
             ex_pf_r = ex_pf_r["return"]
         if rounding is None:
             return (ex_pf_r - rf_rate) / sqrt(self.variance(cov_mat, None))

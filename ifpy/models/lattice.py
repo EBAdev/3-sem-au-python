@@ -417,7 +417,7 @@ class BinomialLattice(Lattice):
         if isinstance(opt, EuOption):
             disc = discount_factor(self.r, 0, opt.T, self.continous)
             to_sum = 0
-
+            
             for k in range(opt.T + 1):
                 num_paths = int(special.binom(opt.T, k))
                 if self.constant_prob_rn is False:
@@ -430,6 +430,7 @@ class BinomialLattice(Lattice):
                     payoff = max(opt.K - self.lat[opt.T][k], 0)
                 q = self.q[0][1]
                 to_sum += (1 - q) ** (opt.T - k) * q ** (k) * num_paths * payoff
+
             if rounding is None:
                 return disc * to_sum
             else:

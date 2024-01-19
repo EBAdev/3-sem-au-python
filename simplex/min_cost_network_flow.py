@@ -5,6 +5,21 @@ from typing import List, Tuple, Union, Dict
 Num = Union[float, int]
 
 
+def np_mat_to_latex_pmatrix(a):
+    """Returns a LaTeX pmatrix
+
+    :a: numpy array
+    :returns: LaTeX bmatrix as a string
+    """
+    if len(a.shape) > 2:
+        raise ValueError("bmatrix can at most display two dimensions")
+    lines = str(a).replace("[", "").replace("]", "").splitlines()
+    rv = [r"\begin{pmatrix}"]
+    rv += ["  " + " & ".join(l.split()) + r"\\" for l in lines]
+    rv += [r"\end{pmatrix}"]
+    return "\n".join(rv)
+
+
 def create_min_cost_network(nodes, arcs) -> nx.DiGraph:
     G = nx.DiGraph()
     total_supply = 0
@@ -23,6 +38,7 @@ def create_min_cost_network(nodes, arcs) -> nx.DiGraph:
     for idx, layer in enumerate(nx.bfs_layers(G, source_nodes)):
         for node in layer:
             G.nodes[node]["layer"] = idx
+
     return G
 
 
@@ -97,6 +113,23 @@ def get_initial_flow(T: nx.DiGraph) -> List[Tuple[int, int, Num]]:
                         "supply"
                     ]  # update flow at the incident node
                     H.remove_edge(*arc)  # remove the edge from consideration
+                else:
+                    if node[1]["supply"] > 0:  # if node is supplier
+                        raise ValueError(
+                            "There is a positive supply but nowhere to send it"
+                        )
+                    connected_arcs = [edge for edge in H.edges if edge[1] == node[0]]
+                    neighbor = (connected_arcs[0][0], H.nodes[connected_arcs[0][0]])
+
+                    if neighbor[1]["supply"] < -node[1]["supply"]:
+                        continue
+                    flow_update.append(
+                        (neighbor[0], node[0], -node[1]["supply"])
+                    )  # send flow along edge
+                    H.nodes[neighbor[0]]["supply"] += node[1][
+                        "supply"
+                    ]  # update available flow at supplier
+                    H.remove_edge(neighbor[0], node[0])
     return flow_update
 
 
@@ -127,8 +160,6 @@ def get_dual_solution(
     A variable corresponding to a node will be set to zero to solve equations.
     If the variable is not provided we use the last node.
     """
-    if variable_to_zero == -1:
-        variable_to_zero = G.number_of_nodes()
 
     A = -1 * nx.incidence_matrix(T, oriented=True).toarray().T  # get incidence matrix
 
@@ -179,6 +210,7 @@ def get_network_optimization(
 ) -> Tuple[List[Tuple[int, int, Num]], Tuple[int, int]]:
     T = Tree.copy()
     G = Graph.copy()
+
     T.add_edge(
         lowest_reduced_cost[0],
         lowest_reduced_cost[1],
@@ -192,7 +224,7 @@ def get_network_optimization(
     ]
 
     if backwards_path == []:  # network unbound
-        return []
+        return (False, cycle)
 
     theta = min([c[2]["flow"] for c in backwards_path])
     leaving_arc_idx = [c[2]["flow"] for c in backwards_path].index(theta)
@@ -205,16 +237,132 @@ def get_network_optimization(
         (c[0], c[1], -theta) if c[2] == "reverse" else (c[0], c[1], theta)
         for c in cycle
     ]
-    return (flow_update, leaving_arc)
+    return (flow_update, leaving_arc, cycle)
+
+
+def cycle_fig_tex(
+    G: nx.DiGraph,
+    cycle,
+    node_labels,
+    scale,
+    caption,
+    latex_label,
+    transportation_problem,
+) -> str:
+    C = nx.DiGraph()
+    C.add_nodes_from(G.nodes())
+    labels = node_labels.copy()
+    for c in cycle:
+        C.add_edge(c[0], c[1], direction=c[2], flow=G.edges[c[0], c[1]]["flow"])
+
+    edge_labels = {}
+    edge_label_opt = {}
+    for label in labels:
+        labels.update({label: "$" + labels[label] + "$"})
+    if transportation_problem is False:
+        pos = nx.multipartite_layout(G, scale=scale, subset_key="layer")
+    else:
+        suppliers = [node[0] for node in G.nodes(data=True) if node[1]["supply"] > 0]
+        pos = nx.bipartite_layout(G, suppliers, scale=scale)
+
+    for arc in C.edges():
+        data = C.edges[arc[0], arc[1]]
+
+        if data["direction"] == "reverse":
+            label = (
+                "$f_{"
+                + node_labels[arc[0]]
+                + ","
+                + node_labels[arc[1]]
+                + "}="
+                + str(data["flow"])
+                + "-\\delta$"
+            )
+        else:
+            label = (
+                "$f_{"
+                + node_labels[arc[0]]
+                + ","
+                + node_labels[arc[1]]
+                + "}="
+                + str(data["flow"])
+                + "+\\delta$"
+            )
+        edge_labels.update({arc: label})
+        edge_label_opt.update({arc: "[pos=.5,scale=0.50,above,sloped]"})
+
+    return nx.to_latex(
+        C,
+        pos=pos,
+        as_document=False,
+        caption=caption,
+        figure_wrapper="\\begin{{figure}}[H]\n\\centering\n{content}{caption}{label}\n\\end{{figure}}",
+        node_label=labels,
+        tikz_options="scale=" + str(scale),
+        edge_label=edge_labels,
+        edge_label_options=edge_label_opt,
+        latex_label=latex_label,
+    )
+
+
+def table_method(G: nx.DiGraph, tree_sol):
+    T = nx.DiGraph()
+    T.add_nodes_from(G.nodes(data=True))
+    edges = [edge for edge in G.edges(data=True) if (edge[0], edge[1]) in tree_sol]
+
+    T.add_edges_from(edges)
+    C = T.copy()
+
+    while len(C.edges) != 0 and len(C.nodes) != 0:
+        for supply_node in list(C.nodes(True)):
+            if supply_node[1]["supply"] <= 0:
+                continue
+
+            for arc in list(C.edges(supply_node[0], data=True)):
+                if nx.degree(C, arc[1]) == 1 or nx.degree(C, arc[0]) == 1:
+                    demand_node = (arc[1], C.nodes[arc[1]])
+                    if (
+                        -demand_node[1]["supply"]
+                        <= supply_node[1]["supply"]
+                        # if demand less curret flow is less than the available supply
+                    ):
+                        T.edges[supply_node[0], demand_node[0]]["flow"] = -demand_node[
+                            1
+                        ]["supply"]
+                        # demand clears
+                        # update supply
+                        C.nodes[supply_node[0]]["supply"] += demand_node[1]["supply"]
+                        C.nodes[demand_node[0]]["supply"] = 0
+                        C.remove_edge(supply_node[0], demand_node[0])
+                        C.remove_node(demand_node[0])
+                    elif (
+                        supply_node[1]["supply"]
+                        < -demand_node[1][
+                            "supply"
+                        ]  # if supply is less than the current demand
+                    ):
+                        T.edges[supply_node[0], demand_node[0]]["flow"] += supply_node[
+                            1
+                        ][
+                            "supply"
+                        ]  # send all supply.
+                        # update supply
+                        C.nodes[demand_node[0]]["supply"] += C.nodes[supply_node[0]][
+                            "supply"
+                        ]
+                        C.nodes[supply_node[0]]["supply"] = 0
+                        C.remove_node(supply_node[0])
+    return T
 
 
 def min_cost_network_flow_simplex(
     nodes: List[Tuple[int, Num]],
     arcs: List[Tuple[int, int, Num]],
     tree_solution: List[Tuple[int, int]] = None,
-    tranportation_problem: bool = False,
+    transportation_problem: bool = False,
     variable_to_zero: int = -1,
     node_labels: Dict = None,
+    LaTeX: bool = False,
 ):
     """
     Function to calculate the minimum cost network flow from suppliers to demanders.
@@ -233,12 +381,29 @@ def min_cost_network_flow_simplex(
     """
     G = create_min_cost_network(nodes, arcs)
 
-    if tranportation_problem is True:
-        T = north_west_method(G)
+    if node_labels is None:
+        node_labels = {}
+        for i in range(G.number_of_nodes()):
+            node_labels.update({i + 1: str(i + 1)})
 
-    elif not tranportation_problem and len(tree_solution) == len(G.nodes) - 1:
+    if check_labels(G.number_of_nodes(), node_labels) is not True:
+        raise check_labels(G.number_of_nodes(), node_labels)
+
+    if transportation_problem is True and tree_solution is None:
+        T = north_west_method(G)
+        for arc in T.edges(data=True):
+            G.edges[arc[0], arc[1]]["flow"] = arc[2]["flow"]
+
+    elif transportation_problem is True and len(tree_solution) == len(G.nodes) - 1:
+        T = table_method(G, tree_solution)
+
+        for arc in T.edges(data=True):
+            G.edges[arc[0], arc[1]]["flow"] = arc[2]["flow"]
+
+    elif not transportation_problem and len(tree_solution) == len(G.nodes) - 1:
         tree_solution = [arc for arc in arcs if (arc[0], arc[1]) in tree_solution]
         T = create_min_cost_network(nodes, tree_solution)
+
         flow_update = get_initial_flow(T)
         G, T = update_network_flow(G, T, flow_update)
 
@@ -247,31 +412,43 @@ def min_cost_network_flow_simplex(
             "There was a problem with the provided tree solution, it does not span the provided min-cost-network."
         )
 
+    if variable_to_zero == -1:
+        variable_to_zero = G.number_of_nodes()
+
     dual_solution = get_dual_solution(G, T, variable_to_zero)
     reduced_costs = get_reduced_costs(arcs, dual_solution)
 
+    nit = 0
     while optimal_reduced_costs(reduced_costs) is not True:
+        nit += 1
         lowest_reduced_cost = get_min_reduced_costs(reduced_costs)
 
         entering_arc = (lowest_reduced_cost[0], lowest_reduced_cost[1])
 
         network_optimization = get_network_optimization(G, T, lowest_reduced_cost)
-        if network_optimization == []:
-            return "network is unbounded"
+
+        if network_optimization[0] is False:
+            raise ValueError(
+                "When adding "
+                + str(entering_arc)
+                + " to basis, a cycle with no reverse arcs was discovered. This means that the network is unbound."
+            )
 
         flow_update = network_optimization[0]
         leaving_arc = network_optimization[1]
-
+        cycle = network_optimization[2]
         T.add_edge(
-            *entering_arc,
+            entering_arc[0],
+            entering_arc[1],
             cost=G.edges[entering_arc[0], entering_arc[1]]["cost"],
-            flow=0
+            flow=0,
         )
         G, T = update_network_flow(G, T, flow_update)
         T.remove_edge(*leaving_arc)
 
         dual_solution = get_dual_solution(G, T, variable_to_zero)
         reduced_costs = get_reduced_costs(arcs, dual_solution)
+
     return T
 
 
@@ -318,9 +495,11 @@ def min_cost_network_flow_to_latex(
     if node_labels == {}:
         for i in range(G.number_of_nodes()):
             node_labels.update({i + 1: str(i + 1)})
-
-    if check_labels(G.number_of_nodes(), node_labels) is not True:
-        raise check_labels(G.number_of_nodes(), node_labels)
+    labels = node_labels.copy()
+    for label in labels:
+        labels.update({label: "$" + labels[label] + "$"})
+    if check_labels(G.number_of_nodes(), labels) is not True:
+        raise check_labels(G.number_of_nodes(), labels)
 
     edge_labels = {}
     edge_label_opt = {}
@@ -333,15 +512,15 @@ def min_cost_network_flow_to_latex(
         data = G.edges[arc[0], arc[1]]
         label = (
             "$c_{"
-            + str(arc[0])
+            + node_labels[arc[0]]
             + ","
-            + str(arc[1])
+            + node_labels[arc[1]]
             + "}="
             + str(data["cost"])
             + "\\quad f_{"
-            + str(arc[0])
+            + node_labels[arc[0]]
             + ","
-            + str(arc[1])
+            + node_labels[arc[1]]
             + "}="
             + str(data["flow"])
             + "$"
@@ -355,7 +534,7 @@ def min_cost_network_flow_to_latex(
         as_document=False,
         caption=caption,
         figure_wrapper="\\begin{{figure}}[H]\n\\centering\n{content}{caption}{label}\n\\end{{figure}}",
-        node_label=node_labels,
+        node_label=labels,
         tikz_options="scale=" + str(scale),
         edge_label=edge_labels,
         edge_label_options=edge_label_opt,
@@ -424,6 +603,5 @@ if __name__ == "__main__":
         (4, 9, 11),
     ]
     optimal = min_cost_network_flow_simplex(
-        transp_nodes_inp, transp_arcs_inp, tranportation_problem=True
+        transp_nodes_inp, transp_arcs_inp, None, True, LaTeX=True
     )
-    print(min_cost_network_flow_to_latex(optimal, True))
